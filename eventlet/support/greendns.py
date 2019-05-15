@@ -313,8 +313,11 @@ class ResolverProxy(object):
         self.clear()
 
     def clear(self):
-        self._resolver = dns.resolver.Resolver(filename=self._filename)
-        self._resolver.cache = dns.resolver.LRUCache()
+        try:
+            self._resolver = dns.resolver.Resolver(filename=self._filename)
+            self._resolver.cache = dns.resolver.LRUCache()
+        except dns.resolver.NoResolverConfiguration:
+            self._resolver = None
 
     def query(self, qname, rdtype=dns.rdatatype.A, rdclass=dns.rdataclass.IN,
               tcp=False, source=None, raise_on_no_answer=True,
@@ -363,6 +366,10 @@ class ResolverProxy(object):
             if step(self._hosts.query, qname, rdtype, raise_on_no_answer=False):
                 if (result[0] is not None) or (result[1] is not None) or (not use_network):
                     return end()
+
+        # If resolv_conf was empty there is no point in querying anything but /etc/hosts
+        if self._resolver is None:
+            raise dns.resolver.NXDOMAIN(qnames=(qname,))
 
         # Main query
         step(self._resolver.query, qname, rdtype, rdclass, tcp, source, raise_on_no_answer=False)
